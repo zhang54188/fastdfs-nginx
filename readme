@@ -1,1 +1,146 @@
-https://blog.csdn.net/WXL0130/article/details/115297272
+文档转自https://blog.csdn.net/WXL0130/article/details/115297272
+注意的点 一定要注意的文件路径 是绝对路径还是相对路径 比如我的download就放在/home/user/中就导致了我全程都是/download/成/home/user/download/
+第一步 安装依赖
+#centos可以先行yum安装相关依赖,ubuntu的依赖命令在后面
+yum  install -y  libevent  #FastDFS依赖libevent库 libevent-2.0.21-4.el7.x86_64
+yum -y install gcc
+yum install -y pcre pcre-devel
+yum install -y zlib zlib-devel
+yum install -y openssl openssl-devel
+# 没有make的需要安装一下make
+yum install -y make
+第二步 创建缓存文件地址
+#存放对应追踪器,存储节点,和日志数据
+mkdir -p /fastdfs/tracker
+mkdir -p /fastdfs/storage
+mkdir -p /fastdfs/logs
+#本次安装所有压缩包和测试图片放在这里,这里和root目录同级
+mkdir /download
+第三步 安装libfastcommon
+cd /download/
+#解压
+tar -zxvf libfastcommon-1.0.48.tar.gz
+#进入刚刚解压出来的文件夹
+cd libfastcommon-1.0.48
+#编译
+./make.sh 
+#安装
+./make.sh install
+# 复制文件，解决FastDFS中lib配置文件路径问题。
+#网上有些文章是写了软链接啥的,这里应该是起类似的效果
+cp /usr/lib64/libfastcommon.so /usr/local/lib/libfastcommon.so
+cp /usr/lib64/libfastcommon.so /usr/lib/libfastcommon.so
+第四步 安装dfs
+#进入我们放置压缩包的文件夹
+cd /download/
+#使用解压缩命令 解压fastdfs压缩包
+tar -zxvf fastdfs-6.07.tar.gz
+#进入解压产生的fastdfs文件夹然后编译和安装
+cd fastdfs-6.07
+./make.sh
+./make.sh  install
+#安装后进入conf文件夹
+cd conf/
+#进入conf后使用pwd可以查看当前路径
+/download/fastdfs-6.07/conf
+#把conf文件夹下所有文件复制到/etc/fsds/下,后续修改的配置文件都是这里的
+cp * /etc/fdfs/
+第五步 配置tracker
+#进入/etc/fdfs/文件夹
+cd /etc/fdfs/
+vim tracker.conf
+#找到base_path修改如下
+base_path=/fastdfs/tracker
+#修改后启动tracker
+fdfs_trackerd /etc/fdfs/tracker.conf start
+#使用如下命令查看,出现tracker相关数据即可
+ps -ef | grep fdfs
+第六步 配置storage
+#配置storage(即刚刚配置tracker的同级/etc/fdfs)
+vim storage.conf
+#修改
+#日志目录(# the base path to store data and log files)
+base_path=/fastdfs/storage 
+#存储目录( # store_path#, based on 0, to configure the store paths to store files)
+store_path0=/fastdfs/storage  
+#tracker节点,在这里配自己服务器的外网ip,只配置一个ip的话,另一个最好注释掉
+tracker_server=192.168.1.4:22122
+#启动storage
+fdfs_storaged /etc/fdfs/storage.conf start
+#同tracker的查看方式,使用命令看看是否有storage的服务
+ps -ef | grep fdfs
+第六步 可以省略 检测
+#依然是/etc/fdfs/下
+vim client.conf
+#tracker节点
+tracker_server=192.168.1.4:22122
+#日志路径
+base_path=/fastdfs/logs
+#这里配置端口(和nginx中自己配置的端口保持一致)
+http.tracker_server_port = 8555
+
+#测试上传
+/usr/bin/fdfs_test /etc/fdfs/client.conf upload  /download/a.png
+
+最重要的一步 
+#安装nginx和关联文件
+cd /download/
+tar -zxvf fastdfs-nginx-module-1.22.tar.gz
+
+tar -zxvf nginx-1.19.8.tar.gz
+cd nginx-1.19.8
+
+#安装libpcre3-dev 和 zlib1g-dev 不然无法编译
+ apt install libpcre3-dev
+ apt install zlib1g-dev
+
+#--prefix 编译的时候用来指定程序存放路径 
+./configure --prefix=/usr/local/nginx --add-module=/download/fastdfs-nginx-module-1.22/src/
+#编译nginx
+make
+#安装nginx
+make install
+#把配置文件放到/etc/fdfs下面
+cd /download/fastdfs-nginx-module-1.22/src/
+cp mod_fastdfs.conf /etc/fdfs/
+
+vim /etc/fdfs/mod_fastdfs.conf
+
+#修改如下内容
+
+connect_timeout=15 # 客户端访问文件连接超时时长（单位：秒）
+# the base path to store log files
+#这里可改可不改,但是这个路径对应必须存在
+base_path=/fastdfs/logs # 存储日志路径
+tracker_server=192.168.1.4:22122 # tracker服务IP和端口
+url_have_group_name=true # 访问链接前缀加上组名
+ # must same as storage.conf
+store_path0=/fastdfs/storage # 文件存储路径
+
+接下来在nginx.conf文件中添加一个server
+vim /usr/local/nginx/conf/nginx.conf
+#在配置文件中额外添加一个server
+
+ server {
+    	listen	8555;#端口和client.conf中的保持一致
+	    server_name	fastdfs;
+	    location ~/group[0-9]/ {
+		    ngx_fastdfs_module;
+	    }
+	    error_page   500 502 503 504  /50x.html;
+	    location = /50x.html {
+            root   html;
+        }
+    }
+    启动
+    启动nginx
+/usr/local/nginx/sbin/nginx 
+#如果报80端口被占用,就把原来的80端口修改为其他端口在安全组开放即可
+
+#重启nginx
+/usr/local/nginx/sbin/nginx -s reload
+#查看端口占用情况
+netstat -tunlp | grep 端口
+测试
+/usr/bin/fdfs_test /etc/fdfs/client.conf upload  /download/a.png
+
