@@ -1,0 +1,32 @@
+以下都是在root下进行的且是我通过window的django连接Ubuntu的nginx才会出的问题
+  如果没有跨系统的话不需要有下面操作
+su root
+输入密码
+
+首先关闭防火墙
+1.安装可以查看防火墙是否打开
+apt-get install ufw
+2.查看
+ufw status
+3.关闭防火墙
+ufw disable 关闭
+ufw enable 打开
+最后一定要是关闭的
+
+
+我出的问题是端口没有打开（ubuntu20.04）
+1.安装一个可以打开和查看端口的包
+apt-get install iptables
+2.添加端口 3306 tcp方式
+iptables -I INPUT -p tcp --dport 3306 -j ACCEPT3
+3.保存更改（短期）下次重启就没了
+iptables-save
+4.长期保存
+4.1安装可以实现的包
+apt-get install iptables-persistent
+4.2长期保存
+service iptables-persistent save
+
+需要注意的：netstat -tunlp | grep 你的nginx，storage tracker
+打出来的就是你需要打开的端口
+ 
