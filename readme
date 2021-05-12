@@ -1,4 +1,4 @@
-文档转自https://blog.csdn.net/WXL0130/article/details/115297272
+
 注意的点 一定要注意的文件路径 是绝对路径还是相对路径 比如我的download就放在/home/user/中就导致了我全程都是/download/成/home/user/download/
 第一步 安装依赖
 #centos可以先行yum安装相关依赖,ubuntu的依赖命令在后面
@@ -144,3 +144,4 @@ netstat -tunlp | grep 端口
 测试
 /usr/bin/fdfs_test /etc/fdfs/client.conf upload  /download/a.png
 
+文档转自https://blog.csdn.net/WXL0130/article/details/115297272
